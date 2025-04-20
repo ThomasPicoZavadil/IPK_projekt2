@@ -67,10 +67,7 @@ class Program
 
     static async Task RunTcpClient(string server, int port)
     {
-        Console.WriteLine($"Resolving server address: {server}...");
         string resolvedServer = ResolveServerAddress(server);
-
-        Console.WriteLine($"Connecting to TCP server at {resolvedServer}:{port}...");
 
         try
         {
@@ -78,16 +75,18 @@ class Program
             using NetworkStream stream = client.GetStream();
             var context = new ClientContext(stream);
 
-            Console.WriteLine("Connected. You can now enter commands.");
-
             while (true)
             {
                 string? input = Console.ReadLine();
 
-                if (string.IsNullOrWhiteSpace(input))
-                    continue;
+                if (input == null) // Handle Ctrl+D (EOF)
+                {
+                    Console.WriteLine("EOF detected. Exiting...");
+                    context.GracefulExit();
+                    break;
+                }
 
-                context.ProcessInput(input.Trim());
+                context.ProcessInput(input);
 
                 if (stream.DataAvailable)
                 {

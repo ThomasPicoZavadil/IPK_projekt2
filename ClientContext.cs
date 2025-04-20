@@ -18,6 +18,47 @@ public class ClientContext
         this.currentState = new StartState();
         this.cancellationTokenSource = new CancellationTokenSource();
         StartListeningForServerMessages();
+
+        // Handle Ctrl+C for graceful exit
+        Console.CancelKeyPress += (sender, e) =>
+        {
+            e.Cancel = true; // Prevent immediate termination
+            GracefulExit(); // Call the graceful exit method
+        };
+    }
+
+    public void GracefulExit()
+    {
+        try
+        {
+            // Send a BYE message to the server
+            if (stream != null && stream.CanWrite)
+            {
+                string byeMessage = $"BYE FROM {DisplayName}\r\n";
+                byte[] data = Encoding.UTF8.GetBytes(byeMessage);
+                stream.Write(data, 0, data.Length);
+                Console.WriteLine("Sent BYE message to the server.");
+            }
+
+            // Stop listening for messages
+            StopListening();
+
+            // Dispose of the stream and other resources
+            stream?.Close();
+            stream?.Dispose();
+            cancellationTokenSource?.Cancel();
+            cancellationTokenSource?.Dispose();
+            Console.WriteLine("Closed the network stream and cleaned up resources.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error during graceful exit: {ex.Message}");
+        }
+        finally
+        {
+            Console.WriteLine("Exiting the program.");
+            Environment.Exit(0); // Exit the program
+        }
     }
 
     public void SendMessage(string message)
@@ -28,6 +69,13 @@ public class ClientContext
 
     public void ProcessInput(string input)
     {
+        if (input == null) // Handle Ctrl+D (EOF)
+        {
+            Console.WriteLine("EOF detected. Cleaning up and exiting...");
+            GracefulExit();
+            return;
+        }
+
         currentState.HandleInput(this, input);
     }
 

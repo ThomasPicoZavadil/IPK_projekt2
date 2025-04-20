@@ -13,19 +13,22 @@ public class AuthState : IClientState
                 string secret = parts[2];
                 string displayName = parts[3];
                 context.DisplayName = displayName; // Save the DisplayName in the context
-                string authMessage = $"AUTH {username} AS {displayName} USING {secret}\r\n";
+                string authMessage = $"AUTH {username} AS {displayName} USING {secret}\r";
                 await context.SendMessageAsync(authMessage); // Send the formatted message to the server
-                Console.WriteLine("Switching to AuthState.");
                 context.SetState(new AuthState());
             }
             else
             {
-                Console.WriteLine("Usage: /auth {Username} {Secret} {DisplayName}");
+                Console.WriteLine("Usage: /auth {Username} {Secret} {DisplayName}\n");
             }
+        }
+        else if (input.StartsWith("/help"))
+        {
+            Console.WriteLine("/auth {Username} {Secret} {DisplayName} - Authenticate with the server.\n");
         }
         else
         {
-            Console.WriteLine("Please authenticate first using: /auth {Username} {Secret} {DisplayName}");
+            Console.WriteLine("ERROR: authorize using /auth first.\n");
         }
     }
 
@@ -34,29 +37,38 @@ public class AuthState : IClientState
         if (message.StartsWith("REPLY OK IS "))
         {
             string messageContent = message.Substring("REPLY OK IS ".Length);
-            Console.WriteLine($"Action Success: {messageContent}");
+            Console.WriteLine($"Action Success: {messageContent}\n");
             context.SetState(new OpenState());
         }
         else if (message.StartsWith("REPLY NOK IS "))
         {
             string messageContent = message.Substring("REPLY NOK IS ".Length);
-            Console.WriteLine($"Action Failure: {messageContent}");
+            Console.WriteLine($"Action Failure: {messageContent}\n");
         }
-        else if (message == "ERR")
+        else if (message.StartsWith("ERR FROM "))
         {
-            Console.WriteLine("Error received from server. Terminating connection.");
-            context.StopListening(); // Gracefully stop listening for messages
-            Environment.Exit(0); // Exit the application
+            // Parse the message in the format "ERR FROM {DisplayName} IS {MessageContent}"
+            string[] parts = message.Split(new[] { "ERR FROM ", " IS " }, StringSplitOptions.None);
+            if (parts.Length == 3)
+            {
+                string displayName = parts[1].Trim();
+                string messageContent = parts[2].Trim();
+                Console.WriteLine($"ERROR FROM {displayName}: {messageContent}\n");
+            }
+            else
+            {
+                Console.WriteLine($"[OpenState] Malformed ERR message: {message}\n");
+            }
         }
-        else if (message == "BYE")
+        else if (message.StartsWith("BYE"))
         {
-            Console.WriteLine("Server has terminated the connection. Goodbye.");
+            Console.WriteLine("Server has terminated the connection. Goodbye.\n");
             context.StopListening(); // Gracefully stop listening for messages
             Environment.Exit(0); // Exit the application
         }
         else
         {
-            Console.WriteLine($"[AuthState] Server: {message}");
+            Console.WriteLine($"[AuthState] Server: {message}\n");
         }
     }
 }
