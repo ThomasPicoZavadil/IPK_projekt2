@@ -14,11 +14,11 @@ class Program
             return;
         }
 
-        string protocol = "tcp";
-        string server = "127.0.0.1";
-        int port = 4567;
-        int timeout = 100; // Default timeout for UDP in ms
-        int retransmissions = 1; // Default retransmissions for UDP
+        string? protocol = null;
+        string? server = null;
+        int port = 4567; // Default port
+        int timeout = 250; // Default timeout for UDP in ms
+        int retransmissions = 3; // Default retransmissions for UDP
 
         // Parse command-line arguments
         for (int i = 0; i < args.Length; i++)
@@ -29,7 +29,16 @@ class Program
                     protocol = args[++i];
                     break;
                 case "-s":
-                    server = args[++i];
+                    if (i + 1 < args.Length && !args[i + 1].StartsWith("-"))
+                    {
+                        server = args[++i];
+                    }
+                    else
+                    {
+                        Console.WriteLine("ERROR: Missing or malformed server address after -s.");
+                        PrintHelp();
+                        return;
+                    }
                     break;
                 case "-p":
                     port = int.Parse(args[++i]);
@@ -43,6 +52,14 @@ class Program
             }
         }
 
+        // Validate mandatory arguments
+        if (string.IsNullOrEmpty(protocol) || string.IsNullOrEmpty(server))
+        {
+            Console.WriteLine("ERROR: Both -t (protocol) and -s (server) arguments are mandatory.");
+            PrintHelp();
+            return;
+        }
+
         if (protocol == "tcp")
         {
             await RunTcpClient(server, port);
@@ -53,7 +70,8 @@ class Program
         }
         else
         {
-            Console.WriteLine("Unsupported protocol. Use 'tcp' or 'udp'.");
+            Console.WriteLine("ERROR: Unsupported protocol. Use 'tcp' or 'udp'.");
+            PrintHelp();
         }
     }
 
@@ -112,46 +130,17 @@ class Program
 
         try
         {
-            using UdpClient client = new UdpClient();
-            client.Connect(resolvedServer, port);
-
-            Console.WriteLine("Connected. You can now enter commands.");
+            var context = new ClientContext("udp", resolvedServer, port, timeout, retransmissions);
+            context.SetState(new UDPStartState());
 
             while (true)
             {
-                Console.Write("> ");
                 string? input = Console.ReadLine();
 
                 if (string.IsNullOrWhiteSpace(input))
                     continue;
 
-                byte[] data = Encoding.UTF8.GetBytes(input.Trim());
-                client.Send(data, data.Length);
-
-                for (int i = 0; i <= retransmissions; i++)
-                {
-                    client.Client.ReceiveTimeout = timeout;
-
-                    try
-                    {
-                        IPEndPoint remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
-                        byte[] response = client.Receive(ref remoteEndPoint);
-                        string responseMessage = Encoding.UTF8.GetString(response);
-                        Console.WriteLine($"Server: {responseMessage}");
-                        break;
-                    }
-                    catch (SocketException ex) when (ex.SocketErrorCode == SocketError.TimedOut)
-                    {
-                        if (i == retransmissions)
-                        {
-                            Console.WriteLine("No response from server. Retransmissions exhausted.");
-                        }
-                        else
-                        {
-                            Console.WriteLine("No response from server. Retrying...");
-                        }
-                    }
-                }
+                context.ProcessInput(input);
             }
         }
         catch (Exception ex)
