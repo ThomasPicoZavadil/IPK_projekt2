@@ -1,16 +1,25 @@
+// Author: xzavadt00
+// This class represents the open state of the client in the TCP protocol.
+// It handles user input for sending messages, joining channels, renaming the display name, and disconnecting.
+// It also processes server messages such as errors, incoming messages, and termination signals.
+
 public class OpenState : IClientState
 {
+    // Handles user input while in the open state
     public async Task HandleInput(ClientContext context, string input)
     {
         if (input.StartsWith("/join "))
         {
+            // Handle the /join command to join a specific channel
             string[] parts = input.Split(' ', 2);
             if (parts.Length == 2)
             {
                 string channelName = parts[1];
                 string joinMessage = $"JOIN {channelName} AS {context.DisplayName}\r";
                 await context.SendMessageAsync(joinMessage);
-                context.SetState(new JoinState(channelName)); // Transition to JoinState
+
+                // Transition to the JoinState after sending the join request
+                context.SetState(new JoinState(channelName));
             }
             else
             {
@@ -19,13 +28,17 @@ public class OpenState : IClientState
         }
         else if (input.StartsWith("/bye"))
         {
+            // Handle the /bye command to disconnect and exit
             string byeMessage = $"BYE FROM {context.DisplayName}\r";
             await context.SendMessageAsync(byeMessage);
-            context.StopListening(); // Gracefully stop listening for messages
-            Environment.Exit(0); // Exit the application
+
+            // Gracefully stop listening and exit the application
+            context.StopListening();
+            Environment.Exit(0);
         }
         else if (input.StartsWith("/rename "))
         {
+            // Handle the /rename command to change the display name
             string[] parts = input.Split(' ', 2);
             if (parts.Length == 2)
             {
@@ -39,6 +52,7 @@ public class OpenState : IClientState
         }
         else if (input.StartsWith("/help"))
         {
+            // Display a list of supported commands
             Console.WriteLine("Supported commands:");
             Console.WriteLine("/join {channel name} - Join a specific channel.");
             Console.WriteLine("/bye - Disconnect from the server and exit the application.");
@@ -47,42 +61,49 @@ public class OpenState : IClientState
         }
         else if (input.StartsWith("/auth "))
         {
+            // Prevent re-authentication in the open state
             Console.WriteLine("ERROR: You are already authenticated. No need to re-authenticate.\n");
         }
         else if (string.IsNullOrWhiteSpace(input))
         {
+            // Handle empty or invalid commands
             Console.WriteLine($"ERROR: Unknown command: {input}\n");
         }
         else
         {
-            // Validate the message content
+            // Validate and send a regular message
             if (input.Contains("\n"))
             {
                 Console.WriteLine("ERROR: Message contains invalid line feed (LF) characters.\n");
                 return;
             }
-            // Treat any input that doesn't start with "/" as a message
+
+            // Format the message and send it to the server
             string formattedMessage = $"MSG FROM {context.DisplayName} IS {input}\r";
             await context.SendMessageAsync(formattedMessage);
         }
     }
 
+    // Handles server messages while in the open state
     public void HandleServerMessage(ClientContext context, string message)
     {
-        // Split the input string by the delimiter "\r\n" to handle multiple messages
+        // Split the input string by the delimiter "\r" to handle multiple messages
         string[] messages = message.Split(new[] { "\r" }, StringSplitOptions.RemoveEmptyEntries);
 
         foreach (string msg in messages)
         {
             if (msg.StartsWith("BYE"))
             {
+                // Handle server termination of the connection
                 Console.WriteLine("Server has terminated the connection. Goodbye.\n");
-                context.StopListening(); // Gracefully stop listening for messages
-                Environment.Exit(0); // Exit the application
+
+                // Gracefully stop listening and exit the application
+                context.StopListening();
+                Environment.Exit(0);
             }
             else if (msg.StartsWith("ERR FROM "))
             {
-                // Parse the message in the format "ERR FROM {DisplayName} IS {MessageContent}"
+                // Parse and handle error messages from the server
                 string[] parts = msg.Split(new[] { "ERR FROM ", " IS " }, StringSplitOptions.None);
                 if (parts.Length == 3)
                 {
@@ -97,7 +118,7 @@ public class OpenState : IClientState
             }
             else if (msg.StartsWith("MSG FROM "))
             {
-                // Parse the message in the format "MSG FROM {DisplayName} IS {MessageContent}"
+                // Parse and display incoming messages from other users
                 string[] parts = msg.Split(new[] { "MSG FROM ", " IS " }, StringSplitOptions.None);
                 if (parts.Length == 3)
                 {
@@ -112,14 +133,16 @@ public class OpenState : IClientState
             }
             else
             {
-                // Handle invalid messages
+                // Handle invalid or unexpected messages
                 Console.WriteLine($"ERROR: Invalid message received: {msg}\n");
 
-                // Send an ERR response back to the server
+                // Send an error response back to the server
                 string errResponse = $"ERR FROM {context.DisplayName} IS Invalid message format\r\n";
                 context.SendMessage(errResponse);
-                context.StopListening(); // Gracefully stop listening for messages
-                Environment.Exit(0); // Exit the application
+
+                // Gracefully stop listening and exit the application
+                context.StopListening();
+                Environment.Exit(0);
             }
         }
     }

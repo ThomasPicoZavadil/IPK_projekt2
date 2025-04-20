@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -7,11 +8,19 @@ using System.Threading.Tasks;
 
 public class ClientContext
 {
-    private NetworkStream stream;
+    private NetworkStream? stream; // Nullable for UDP
     private IClientState currentState;
     private CancellationTokenSource cancellationTokenSource;
     public string? DisplayName { get; set; } // Add this property to store the DisplayName
 
+    // Properties for UDP
+    public string? ServerAddress { get; private set; }
+    public int ServerPort { get; set; }
+    public int Timeout { get; private set; } // Timeout in milliseconds
+    public int Retransmissions { get; private set; } // Number of retransmissions
+    public ushort MessageIdCounter { get; set; } = 0;
+
+    // Constructor for TCP
     public ClientContext(NetworkStream stream)
     {
         this.stream = stream;
@@ -27,17 +36,39 @@ public class ClientContext
         };
     }
 
+    // Constructor for UDP
+    public ClientContext(string protocol, string serverAddress, int serverPort, int timeout, int retransmissions)
+    {
+        if (protocol != "udp")
+        {
+            throw new ArgumentException("Invalid protocol for this constructor. Use 'udp'.");
+        }
+
+        this.ServerAddress = serverAddress;
+        this.ServerPort = serverPort;
+        this.Timeout = timeout;
+        this.Retransmissions = retransmissions;
+        this.currentState = new UDPStartState();
+        this.cancellationTokenSource = new CancellationTokenSource();
+
+        // Handle Ctrl+C for graceful exit
+        Console.CancelKeyPress += (sender, e) =>
+        {
+            e.Cancel = true; // Prevent immediate termination
+            GracefulExit(); // Call the graceful exit method
+        };
+    }
+
     public void GracefulExit()
     {
         try
         {
-            // Send a BYE message to the server
             if (stream != null && stream.CanWrite)
             {
-                string byeMessage = $"BYE FROM {DisplayName}\r\n";
-                byte[] data = Encoding.UTF8.GetBytes(byeMessage);
-                stream.Write(data, 0, data.Length);
-                Console.WriteLine("Sent BYE message to the server.");
+                string byeMessage = $"BYE FROM {DisplayName}\r";
+                SendMessageAsync(byeMessage);
+                StopListening(); // Gracefully stop listening for messages
+                Environment.Exit(0); // Exit the application
             }
 
             // Stop listening for messages
@@ -86,6 +117,7 @@ public class ClientContext
 
     public void SetState(IClientState newState)
     {
+        Console.WriteLine($"Changing state from {currentState.GetType().Name} to {newState.GetType().Name}");
         currentState = newState;
     }
 
