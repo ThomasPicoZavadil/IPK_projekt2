@@ -41,7 +41,16 @@ class Program
                     }
                     break;
                 case "-p":
-                    port = int.Parse(args[++i]);
+                    if (i + 1 < args.Length && int.TryParse(args[++i], out int parsedPort) && parsedPort > 0 && parsedPort <= 65535)
+                    {
+                        port = parsedPort;
+                    }
+                    else
+                    {
+                        Console.WriteLine("ERROR: Missing or invalid port number after -p. Port must be an integer between 1 and 65535.");
+                        PrintHelp();
+                        return;
+                    }
                     break;
                 case "-d":
                     timeout = int.Parse(args[++i]);
