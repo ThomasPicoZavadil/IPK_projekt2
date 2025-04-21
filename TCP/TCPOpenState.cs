@@ -26,16 +26,6 @@ public class OpenState : IClientState
                 Console.WriteLine("Usage: /join {channel name}\n");
             }
         }
-        else if (input.StartsWith("/bye"))
-        {
-            // Handle the /bye command to disconnect and exit
-            string byeMessage = $"BYE FROM {context.DisplayName}\r";
-            await context.SendMessageAsync(byeMessage);
-
-            // Gracefully stop listening and exit the application
-            context.StopListening();
-            Environment.Exit(0);
-        }
         else if (input.StartsWith("/rename "))
         {
             // Handle the /rename command to change the display name
