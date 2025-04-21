@@ -8,25 +8,34 @@ using System.Threading.Tasks;
 
 public class ClientContext
 {
-    private NetworkStream? stream; // Nullable for UDP
-    private IClientState currentState;
-    private CancellationTokenSource cancellationTokenSource;
-    public string? DisplayName { get; set; } // Add this property to store the DisplayName
+    // Network stream for TCP communication (nullable for UDP)
+    private NetworkStream? stream;
 
-    // Properties for UDP
-    public string? ServerAddress { get; private set; }
-    public int ServerPort { get; set; }
+    // Current state of the client (e.g., StartState, AuthState, etc.)
+    private IClientState currentState;
+
+    // Token source for managing cancellation of tasks
+    private CancellationTokenSource cancellationTokenSource;
+
+    // Display name of the client
+    public string? DisplayName { get; set; }
+
+    // Properties for UDP communication
+    public UdpClient? UdpClient { get; private set; } // UDP client instance
+    public IPEndPoint? RemoteEndPoint { get; set; } // Remote server endpoint
+    public string? ServerAddress { get; private set; } // Server address
+    public int ServerPort { get; set; } // Server port
     public int Timeout { get; private set; } // Timeout in milliseconds
     public int Retransmissions { get; private set; } // Number of retransmissions
-    public ushort MessageIdCounter { get; set; } = 0;
+    public ushort MessageIdCounter { get; set; } = 0; // Counter for message IDs
 
-    // Constructor for TCP
+    // Constructor for TCP communication
     public ClientContext(NetworkStream stream)
     {
         this.stream = stream;
-        this.currentState = new StartState();
+        this.currentState = new StartState(); // Initialize the client in the StartState
         this.cancellationTokenSource = new CancellationTokenSource();
-        StartListeningForServerMessages();
+        StartListeningForServerMessages(); // Start listening for server messages
 
         // Handle Ctrl+C for graceful exit
         Console.CancelKeyPress += (sender, e) =>
@@ -36,7 +45,7 @@ public class ClientContext
         };
     }
 
-    // Constructor for UDP
+    // Constructor for UDP communication
     public ClientContext(string protocol, string serverAddress, int serverPort, int timeout, int retransmissions)
     {
         if (protocol != "udp")
@@ -48,7 +57,7 @@ public class ClientContext
         this.ServerPort = serverPort;
         this.Timeout = timeout;
         this.Retransmissions = retransmissions;
-        this.currentState = new UDPStartState();
+        this.currentState = new UDPStartState(); // Initialize the client in the UDPStartState
         this.cancellationTokenSource = new CancellationTokenSource();
 
         // Handle Ctrl+C for graceful exit
@@ -59,26 +68,22 @@ public class ClientContext
         };
     }
 
+    // Gracefully exits the application
     public void GracefulExit()
     {
         try
         {
+            // If the stream is initialized and writable, send a BYE message
             if (stream != null && stream.CanWrite)
             {
                 string byeMessage = $"BYE FROM {DisplayName}\r";
                 SendMessageAsync(byeMessage);
-                StopListening(); // Gracefully stop listening for messages
+                StopListening(); // Stop listening for messages
                 Environment.Exit(0); // Exit the application
             }
 
-            // Stop listening for messages
-            StopListening();
-
-            // Dispose of the stream and other resources
-            stream?.Close();
-            stream?.Dispose();
-            cancellationTokenSource?.Cancel();
-            cancellationTokenSource?.Dispose();
+            // Close the UDP client if it exists
+            Environment.Exit(0); // Exit the application
             Console.WriteLine("Closed the network stream and cleaned up resources.");
         }
         catch (Exception ex)
@@ -92,12 +97,14 @@ public class ClientContext
         }
     }
 
+    // Sends a message synchronously over the TCP stream
     public void SendMessage(string message)
     {
         byte[] data = Encoding.UTF8.GetBytes(message);
         stream.Write(data, 0, data.Length);
     }
 
+    // Processes user input and delegates it to the current state
     public void ProcessInput(string input)
     {
         if (input == null) // Handle Ctrl+D (EOF)
@@ -107,20 +114,35 @@ public class ClientContext
             return;
         }
 
-        currentState.HandleInput(this, input);
+        currentState.HandleInput(this, input); // Delegate input handling to the current state
     }
 
+    // Processes server messages and delegates them to the current state
     public void ProcessServerMessage(string message)
     {
-        currentState.HandleServerMessage(this, message);
+        currentState.HandleServerMessage(this, message); // Delegate message handling to the current state
     }
 
+    // Processes UDP messages and delegates them to the current state (if it supports UDP)
+    public void ProcessUDPMessage(byte[] data)
+    {
+        if (currentState is IUDPClientState udpState)
+        {
+            udpState.HandleUDPMessage(this, data); // Delegate UDP message handling to the current state
+        }
+        else
+        {
+            Console.WriteLine("[ClientContext] ERROR: Current state does not support UDP messages.");
+        }
+    }
+
+    // Sets the current state of the client
     public void SetState(IClientState newState)
     {
-        Console.WriteLine($"Changing state from {currentState.GetType().Name} to {newState.GetType().Name}");
         currentState = newState;
     }
 
+    // Sends a message asynchronously over the TCP stream
     public async Task SendMessageAsync(string message)
     {
         if (stream != null && stream.CanWrite)
@@ -130,18 +152,26 @@ public class ClientContext
         }
     }
 
+    // Starts listening for server messages asynchronously
     private async void StartListeningForServerMessages()
     {
         try
         {
+            // Ensure the stream is not null before creating the StreamReader
+            if (stream == null)
+            {
+                Console.WriteLine("[ClientContext] ERROR: Network stream is not initialized.");
+                return;
+            }
+
             using (var reader = new StreamReader(stream, Encoding.UTF8))
             {
                 while (!cancellationTokenSource.Token.IsCancellationRequested)
                 {
-                    string message = await reader.ReadLineAsync();
-                    if (message != null)
+                    string? message = await reader.ReadLineAsync(); // Read a line from the stream
+                    if (!string.IsNullOrEmpty(message)) // Check if the message is not null or empty
                     {
-                        ProcessServerMessage(message);
+                        ProcessServerMessage(message); // Process the server message
                     }
                 }
             }
@@ -152,8 +182,9 @@ public class ClientContext
         }
     }
 
+    // Stops listening for server messages
     public void StopListening()
     {
-        cancellationTokenSource.Cancel();
+        cancellationTokenSource.Cancel(); // Cancel the listening task
     }
 }
