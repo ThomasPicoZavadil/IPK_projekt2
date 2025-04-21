@@ -133,14 +133,50 @@ class Program
             var context = new ClientContext("udp", resolvedServer, port, timeout, retransmissions);
             context.SetState(new UDPStartState());
 
-            while (true)
+            using (UdpClient udpClient = new UdpClient())
             {
-                string? input = Console.ReadLine();
+                // Bind the UdpClient to a local endpoint to listen for incoming messages
+                udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, 0)); // Bind to any available local port
 
-                if (string.IsNullOrWhiteSpace(input))
-                    continue;
+                IPEndPoint remoteEndPoint = new IPEndPoint(IPAddress.Parse(resolvedServer), port);
+                udpClient.Client.ReceiveTimeout = timeout;
 
-                context.ProcessInput(input);
+                // Start a task to listen for server messages
+                Task.Run(async () =>
+                {
+                    while (true)
+                    {
+                        try
+                        {
+                            // Receive data from the server
+                            UdpReceiveResult result = await udpClient.ReceiveAsync();
+                            byte[] receivedData = result.Buffer;
+
+                            // Pass the received data (byte[]) to ProcessUDPMessage
+                            context.ProcessUDPMessage(receivedData);
+                        }
+                        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.TimedOut)
+                        {
+                            // Handle timeout (no message received within the timeout period)
+                            Console.WriteLine("UDP receive timeout. No message received.");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error while receiving UDP message: {ex.Message}");
+                        }
+                    }
+                });
+
+                // Main loop to handle user input
+                while (true)
+                {
+                    string? input = Console.ReadLine();
+
+                    if (string.IsNullOrWhiteSpace(input))
+                        continue;
+
+                    context.ProcessInput(input);
+                }
             }
         }
         catch (Exception ex)
