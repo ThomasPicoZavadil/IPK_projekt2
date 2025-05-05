@@ -51,7 +51,7 @@ public class StartState : IClientState
             // Send the authentication message to the server
             await context.SendMessageAsync(authMessage);
 
-            Console.WriteLine("Authentication message sent. Waiting for server response...\n");
+            Console.Error.WriteLine("Authentication message sent. Waiting for server response...\n");
 
             // Transition to the AuthState after sending the authentication request
             context.SetState(new AuthState());
@@ -117,7 +117,7 @@ public class StartState : IClientState
     // Handles server termination messages
     private void HandleServerTermination(ClientContext context)
     {
-        Console.WriteLine("Server has terminated the connection. Goodbye.\n");
+        Console.Error.WriteLine("Server has terminated the connection. Goodbye.\n");
 
         // Stop listening for messages and exit the application
         context.StopListening();

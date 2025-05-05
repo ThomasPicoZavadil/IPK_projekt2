@@ -88,7 +88,7 @@ public class JoinState : IClientState
     // Handles server termination of the connection
     private void HandleServerTermination(ClientContext context)
     {
-        Console.WriteLine("Server has terminated the connection. Goodbye.\n");
+        Console.Error.WriteLine("Server has terminated the connection. Goodbye.\n");
 
         // Gracefully stop listening for messages and exit the application
         context.StopListening();

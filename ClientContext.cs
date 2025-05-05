@@ -55,7 +55,7 @@ public class ClientContext
         }
         finally
         {
-            Console.WriteLine("Exiting the program.");
+            Console.Error.WriteLine("Exiting the program.");
             Environment.Exit(0); // Exit the program
         }
     }
@@ -78,7 +78,7 @@ public class ClientContext
     {
         if (input == null) // Handle Ctrl+D (EOF)
         {
-            Console.WriteLine("EOF detected. Cleaning up and exiting...");
+            Console.Error.WriteLine("EOF detected. Cleaning up and exiting...");
             GracefulExit();
             return;
         }

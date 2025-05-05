@@ -109,7 +109,7 @@ class Program
 
                 if (input == null) // Handle Ctrl+D (EOF)
                 {
-                    Console.WriteLine("EOF detected. Exiting...");
+                    Console.Error.WriteLine("EOF detected. Exiting...");
                     context.GracefulExit();
                     break;
                 }

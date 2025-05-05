@@ -76,7 +76,7 @@ public class OpenState : IClientState
 
             // Update the display name locally
             context.DisplayName = newDisplayName;
-            Console.WriteLine($"Display name updated to: {newDisplayName}\n");
+            Console.Error.WriteLine($"Display name updated to: {newDisplayName}\n");
         }
         else
         {
@@ -143,7 +143,7 @@ public class OpenState : IClientState
     // Handles server termination messages
     private void HandleServerTermination(ClientContext context)
     {
-        Console.WriteLine("Server has terminated the connection. Goodbye.\n");
+        Console.Error.WriteLine("Server has terminated the connection. Goodbye.\n");
 
         // Stop listening for messages and exit the application
         context.StopListening();
